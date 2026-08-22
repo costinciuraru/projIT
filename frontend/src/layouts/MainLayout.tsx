@@ -14,6 +14,7 @@ import OutfitBuilderPage from "../pages/OutfitBuilderPage";
 import ProfilePage from "../pages/ProfilePage";
 import SavedPage from "../pages/SavedPage";
 import NotificationsPage from "../pages/NotificationsPage";
+import MapTestPage from "../pages/MapTestPage";
 
 function MainLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -46,6 +47,7 @@ function MainLayout() {
                 <Route path="/saved" element={<SavedPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/map-test" element={<MapTestPage />} />
               </Routes>
             </motion.div>
           </AnimatePresence>
