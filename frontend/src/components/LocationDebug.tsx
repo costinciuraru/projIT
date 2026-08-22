@@ -1,7 +1,17 @@
+import { useEffect } from "react";
 import { useUserLocation } from "../hooks/useUserLocation";
+import { getNearbyClothingStores } from "../services/nearbyStores";
 
 function LocationDebug() {
   const { latitude, longitude, loading, error } = useUserLocation();
+
+  useEffect(() => {
+    if (latitude === null || longitude === null) return;
+
+    getNearbyClothingStores(latitude, longitude)
+      .then((stores) => console.log("Nearby clothing stores:", stores))
+      .catch((err) => console.error("getNearbyClothingStores failed:", err));
+  }, [latitude, longitude]);
 
   return (
     <div className="rounded-xl border border-ink/10 bg-white p-4 text-sm">
