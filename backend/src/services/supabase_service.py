@@ -1,0 +1,19 @@
+from functools import lru_cache
+
+from supabase import Client, create_client
+
+from src.config.env import get_settings
+
+
+@lru_cache
+def get_supabase_client() -> Client:
+    """Server-side Supabase client, using the service role key (bypasses RLS).
+
+    Never expose this client or its key to the frontend — it's for backend use only.
+    """
+    settings = get_settings()
+    if not settings.supabase_url or not settings.supabase_service_role_key:
+        raise RuntimeError(
+            "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in backend/.env"
+        )
+    return create_client(settings.supabase_url, settings.supabase_service_role_key)
