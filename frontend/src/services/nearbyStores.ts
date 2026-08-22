@@ -113,9 +113,11 @@ export async function getNearbyClothingStores(
         return null;
       }
 
+      const name = element.tags?.name ?? element.tags?.brand ?? element.tags?.operator ?? "Unnamed store";
+
       return {
         id: `${element.type}/${element.id}`,
-        name: element.tags?.name ?? "Unnamed store",
+        name,
         lat: position.lat,
         lon: position.lon,
         shopType,
