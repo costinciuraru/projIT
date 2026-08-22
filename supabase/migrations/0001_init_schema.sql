@@ -1,3 +1,7 @@
+-- SUPERSEDED: written before dresscode-db-frontend-contract.md existed.
+-- 0003_rebuild_per_contract.sql drops these tables and rebuilds to match the
+-- contract. Kept only for history — do not run this file.
+--
 -- DressCode initial schema
 -- Run this once in the Supabase Dashboard -> SQL Editor (or via `supabase db push`
 -- if you set up the CLI later). Safe to re-run: guarded with IF NOT EXISTS / OR REPLACE.

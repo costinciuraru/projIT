@@ -1,13 +1,22 @@
 # Supabase setup
 
-The project already has one shared Supabase project. Everyone points at the
-same instance — nobody creates their own project.
+The project uses one shared Supabase project. Everyone points at the same
+instance — nobody creates their own project.
+
+The schema follows [`dresscode-db-frontend-contract.md`](../dresscode-db-frontend-contract.md)
+at the repo root — that's the source of truth for table/column names. If you
+change the schema, update that doc's mapping table too.
 
 ## Applying the schema (one person needs to do this once)
 
-1. Open the project on [supabase.com](https://supabase.com/dashboard) → **SQL Editor**.
-2. Paste and run [`migrations/0001_init_schema.sql`](migrations/0001_init_schema.sql).
-3. Paste and run [`migrations/0002_rls_policies.sql`](migrations/0002_rls_policies.sql).
+Run these in order in the Supabase Dashboard → **SQL Editor**:
+
+1. [`migrations/0003_rebuild_per_contract.sql`](migrations/0003_rebuild_per_contract.sql)
+2. [`migrations/0004_rls_policies.sql`](migrations/0004_rls_policies.sql)
+
+`0001_init_schema.sql` and `0002_rls_policies.sql` are an earlier draft made
+before the contract doc existed — **do not run them**, they're kept only for
+history (0003 already drops anything they created).
 
 Whoever changes the schema later adds a new `NNNN_description.sql` file here
 (numbered after the last one) instead of editing an old file, and everyone
