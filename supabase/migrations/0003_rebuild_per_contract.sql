@@ -11,6 +11,7 @@ drop table if exists garment_items cascade;
 drop table if exists outfit_saves cascade;
 drop table if exists outfit_likes cascade;
 drop table if exists outfits cascade;
+drop table if exists stores cascade;
 drop table if exists profiles cascade;
 drop function if exists sync_outfit_counts() cascade;
 drop function if exists handle_new_user() cascade;
