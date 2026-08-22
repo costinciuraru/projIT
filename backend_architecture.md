@@ -90,33 +90,36 @@ backend/
 
 ## 5. Variabile de mediu (`.env`)
 
-Ai completat deja `backend/.env` cu valorile reale — șablonul de mai jos e doar referința de nume, ca să confirmi că `config.py` citește exact aceste chei (dacă la tine numele diferă puțin, aliniază `config.py` la ce ai deja, nu invers).
+**Implementat și verificat** — toate cele 9 chei există în `backend/.env`, cu valori completate, și corespund exact câmpurilor din `src/config/env.py` (confirmat printr-un pas de verificare: `get_missing_config()` întoarce listă goală).
 
 ```bash
-# ── Server ─────────────────────────────────────────────
-PORT=8000
-FRONTEND_ORIGIN=http://localhost:5173   # pentru CORS, ajustezi la URL-ul real în producție
+# ── Server (opționale — au valori implicite dacă rămân goale) ────────────
+PORT=4000
+FRONTEND_ORIGIN=http://localhost:5173
 
 # ── Hugging Face (Virtual Try-On) ─────────────────────
 HF_API_KEY=
-HF_TRYON_ENDPOINT_URL=
+HF_TRYON_ENDPOINT_URL=https://yisol-idm-vton.hf.space   # implicit dacă lipsește
 
-# ── OpenAI (GPT-5 mini) ───────────────────────────────
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-5-mini
+# ── LLM (GPT-5 mini via Azure AI Foundry) ─────────────
+# Numele reale din .env — nu OPENAI_API_KEY/OPENAI_MODEL. config/env.py leagă
+# aceste nume (nu invers) la câmpurile azure_openai_* via `validation_alias`.
+MODEL_NAME=gpt-5-mini
+API_KEY=
+AZURE_ENDPOINT=
 
 # ── Supabase (server-side, privilegii complete) ───────
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=     # NU e aceeași cu cheia anon din frontend!
 ```
 
-**Notă despre `HF_TRYON_ENDPOINT_URL`**: dacă e un Hugging Face Inference Endpoint dedicat (URL de forma `https://xxxxx.endpoints.huggingface.cloud`), `huggingface_service.py` face un POST simplu, sincron, cu `Authorization: Bearer <HF_API_KEY>`. Dacă e un Space public (URL de forma `https://<user>-<space>.hf.space`), implementarea trebuie să folosească pattern-ul de queue al Gradio (POST la `/call/<api_name>`, apoi poll pe `event_id`) — vezi secțiunea 6.
+**Notă despre `HF_TRYON_ENDPOINT_URL`**: `huggingface_service.py` alege singur protocolul după forma URL-ului. `*.endpoints.huggingface.cloud` → Inference Endpoint dedicat, POST simplu async cu `Authorization: Bearer <HF_API_KEY>`. `*.hf.space` → Space public, pattern de queue Gradio (`POST /call/<api_name>` → `event_id` → poll SSE) — ambele implementate și testate.
 
 ---
 
 ## 6. Endpoint-uri expuse de backend
 
-Toate cer, pe termen lung, header `Authorization: Bearer <supabase_jwt>` (vezi secțiunea 7) — **momentan** `/api/tryon` cere în schimb un placeholder simplu, header `X-User-Id: <uuid din profiles>`, până se implementează auth-ul real. `/health` și `GET /api/db-check` (verifică rapid conexiunea la Supabase, query pe `profiles`) nu cer nimic.
+Toate cer header `Authorization: Bearer <supabase_jwt>` (vezi secțiunea 7), în afară de `/health` și `GET /api/db-check` (verifică rapid conexiunea la Supabase, query pe `profiles`) — acelea rămân publice.
 
 ### `POST /api/tryon`
 Pornește o sesiune de try-on. **Async** — nu așteaptă rezultatul (vezi secțiunea 8).
@@ -188,14 +191,14 @@ Primește locația userului, ia vremea (API extern separat, de ales ulterior), t
 
 ## 7. Autentificare
 
-**Stare actuală (placeholder):** `src/middleware/auth_middleware.py` expune `get_current_user_id`, folosită cu `Depends(get_current_user_id)` în `tryon_routes.py` — citește pur și simplu header-ul `X-User-Id` și îl trimite ca atare, fără nicio verificare. E doar cât să meargă fluxul cap-coadă înainte să existe auth real; nu oferă nicio garanție de securitate (oricine poate pretinde orice `user_id`).
-
-**Țintă (de implementat):** frontend-ul trimite la fiecare request header-ul:
+**Implementat.** Frontend-ul trebuie să trimită la fiecare request header-ul:
 ```
 Authorization: Bearer <access_token de la Supabase Auth>
 ```
 
-`get_current_user_id` (sau o nouă `get_current_user`) va valida token-ul prin `supabase.auth.get_user(token)` și va întoarce `{ id, account_type }` real. Dacă token-ul lipsește sau e invalid, FastAPI răspunde automat 401 (via `HTTPException`).
+`src/middleware/auth_middleware.py` expune `get_current_user`, folosită cu `Depends(get_current_user)` pe toate rutele protejate (`/api/tryon`, `/api/tryon/{session_id}`, `/api/recommendations`, `/api/tagging` — `/health` și `/api/db-check` rămân publice). Validează token-ul prin `supabase.auth.get_user(token)` și întoarce un `CurrentUser { id, account_type }`. `account_type` vine din `user_metadata` dacă există, altfel dintr-un query pe `profiles.account_type` — schema aplicată (`0001_init_schema.sql`) nu are încă această coloană, așa că se degradează la `"user"` dacă query-ul eșuează, în loc să crape. Dacă header-ul lipsește sau token-ul e invalid/expirat, `HTTPException(401, ...)`.
+
+Testat cu un user real creat temporar via `supabase.auth.admin.create_user` (șters imediat după test) — confirmat: `current_user.id` ajunge corect în `tryon_sessions.user_id`, 401 fără token, 401 cu token invalid, 200/202 cu token valid pe toate cele 4 rute.
 
 ---
 
@@ -212,11 +215,13 @@ Nu ține requestul HTTP deschis 20-30 de secunde. Flow recomandat, folosind `Bac
 
 ## 9. Credite AI
 
-Din mockup: „AI Credits: 12” afișat în UI la Try-On.
+**Implementat.** Coloana `ai_credits` (int, default 12) există deja pe `profiles` (`0001_init_schema.sql`).
 
-- Coloană `ai_credits` (int) pe `profiles` (adaugă-o în schema Supabase, dacă nu există deja).
-- Înainte de a porni un try-on, backend verifică `ai_credits > 0`; dacă nu, răspunde 402 cu mesaj clar.
-- La `status = 'done'`, decrementezi cu 1 (sau cu costul real, dacă diferă pe tip de generare).
+- `src/services/supabase_service.py` expune `get_ai_credits(user_id)` și `decrement_ai_credits(user_id, amount=1)` — restul codului (controllere) folosește doar aceste helper-e, nu mai face query-uri brute pe `profiles`.
+- `tryon_controller.create_session` verifică `get_ai_credits(user_id) >= 1` înainte de a crea rândul `tryon_sessions`; dacă nu are credite, ridică `ValueError`, iar `tryon_routes.py` îl transformă în `HTTPException(402, ...)` — try-on-ul nu pornește deloc.
+- `tryon_controller.run_and_update` cheamă `decrement_ai_credits` **doar** pe ramura de succes (`status = 'done'`), niciodată pe eșec.
+- Notă: `decrement_ai_credits` face read-then-write, nu e atomic — suficient la volumul actual, dar o cerere concurentă pentru același user ar putea "pierde" un decrement. De revizuit cu o funcție RPC Postgres dacă devine relevant.
+- Testat cu un user real (creat/șters temporar): 0 credite → `402`, sesiune eșuată → credite neschimbate, `decrement_ai_credits` apelat direct → scade corect.
 - Reset periodic/achiziție de credite — logică separată, nu e nevoie acum pentru MVP.
 
 ---
@@ -227,15 +232,15 @@ Din mockup: „AI Credits: 12” afișat în UI la Try-On.
 - CORS configurat strict pe `FRONTEND_ORIGIN` (middleware `CORSMiddleware` din FastAPI) — nu lăsa `*` în producție.
 - Cheia `SUPABASE_SERVICE_ROLE_KEY` ocolește RLS — folosește-o doar în backend, niciodată în frontend.
 - Toate inputurile validate automat prin modele Pydantic (FastAPI face asta implicit dacă declari body-ul ca model) — nu accepta `dict` liber pe rutele care ajung la Hugging Face/OpenAI.
-- Rate-limiting (`slowapi`) pe endpoint-urile care costă bani (try-on, recomandări, tagging).
+- **Implementat**: rate-limiting cu `slowapi` pe endpoint-urile care costă bani — `POST /api/tryon`, `POST /api/recommendations`, `POST /api/tagging`, limită `20/oră` per IP (`src/middleware/rate_limiter.py`, keyed pe `get_remote_address` — per user ar necesita decodarea JWT-ului direct în key function-ul lui slowapi, nefăcut încă). Peste limită → `429`. Testat live (limită coborâtă temporar la 2/minut, confirmat `429` la a treia cerere, apoi revenit la 20/oră).
 
 ---
 
 ## 11. Deployment (notă rapidă)
 
-`backend/` se deployuiește separat de `frontend/` (Railway, Render, Fly.io, sau un VPS), rulat cu `uvicorn app.main:app --host 0.0.0.0 --port $PORT` (sau `gunicorn` cu workeri Uvicorn în producție). Variabilele din `.env` se setează în panoul serviciului de hosting, nu se urcă fișierul `.env` propriu-zis.
+`backend/` se deployuiește separat de `frontend/` (Railway, Render, Fly.io, sau un VPS), rulat cu `uvicorn src.main:app --host 0.0.0.0 --port $PORT` (sau `gunicorn` cu workeri Uvicorn în producție). Variabilele din `.env` se setează în panoul serviciului de hosting, nu se urcă fișierul `.env` propriu-zis.
 
 ---
 
 ### Ce ai completat deja
-`HF_API_KEY`, `HF_TRYON_ENDPOINT_URL`, `OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL` — toate în `backend/.env`. Restul (structura de foldere, servicii, rute) e ce urmează să scaffold-uiască Claude din VSCode conform documentului ăsta, pe stack Python/FastAPI.
+Toate cele 9 variabile din secțiunea 5 au valori reale în `backend/.env` (`MODEL_NAME`, `API_KEY`, `AZURE_ENDPOINT`, `HF_API_KEY`, `HF_TRYON_ENDPOINT_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, plus `PORT`/`FRONTEND_ORIGIN` opționale) — verificat printr-un pas de verificare dedicat, `get_missing_config()` nu (mai) semnalează nimic lipsă. Restul (structura de foldere, servicii, rute, auth, credite, rate limiting) e deja implementat — vezi secțiunile 4, 6-10.
