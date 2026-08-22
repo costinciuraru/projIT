@@ -11,6 +11,44 @@ export interface NearbyClothingStore {
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const SHOP_TYPES: ClothingShopType[] = ["clothes", "shoes", "boutique"];
 
+const CACHE_PREFIX = "nearbyStores:";
+const CACHE_TTL_MS = 10 * 60 * 1000;
+
+interface CacheEntry {
+  cachedAt: number;
+  stores: NearbyClothingStore[];
+}
+
+function cacheKey(lat: number, lon: number, radiusMeters: number): string {
+  return `${CACHE_PREFIX}${lat.toFixed(2)},${lon.toFixed(2)},${radiusMeters}`;
+}
+
+function readCache(key: string): NearbyClothingStore[] | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+
+    const entry: CacheEntry = JSON.parse(raw);
+    if (Date.now() - entry.cachedAt > CACHE_TTL_MS) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+
+    return entry.stores;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(key: string, stores: NearbyClothingStore[]): void {
+  try {
+    const entry: CacheEntry = { cachedAt: Date.now(), stores };
+    sessionStorage.setItem(key, JSON.stringify(entry));
+  } catch {
+    // sessionStorage unavailable (private browsing, storage full, etc.) - caching is best-effort
+  }
+}
+
 interface OverpassElement {
   type: "node" | "way" | "relation";
   id: number;
@@ -38,6 +76,10 @@ export async function getNearbyClothingStores(
   lon: number,
   radiusMeters = 3000,
 ): Promise<NearbyClothingStore[]> {
+  const key = cacheKey(lat, lon, radiusMeters);
+  const cached = readCache(key);
+  if (cached) return cached;
+
   const query = buildQuery(lat, lon, radiusMeters);
 
   let response: Response;
@@ -57,7 +99,7 @@ export async function getNearbyClothingStores(
 
   const data: OverpassResponse = await response.json();
 
-  return data.elements
+  const stores = data.elements
     .map((element): NearbyClothingStore | null => {
       const position = element.type === "node" ? element : element.center;
       const shopType = element.tags?.shop as ClothingShopType | undefined;
@@ -75,4 +117,8 @@ export async function getNearbyClothingStores(
       };
     })
     .filter((store): store is NearbyClothingStore => store !== null);
+
+  writeCache(key, stores);
+
+  return stores;
 }
