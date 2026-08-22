@@ -1,0 +1,17 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node (in case anything outside frontend/ needs it)
+node_modules/
