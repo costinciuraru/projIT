@@ -31,3 +31,7 @@ create policy "nearby stores cache is publicly writable" on nearby_stores_cache
 drop policy if exists "nearby stores cache is publicly updatable" on nearby_stores_cache;
 create policy "nearby stores cache is publicly updatable" on nearby_stores_cache
   for update using (true);
+
+drop policy if exists "nearby stores cache is publicly deletable" on nearby_stores_cache;
+create policy "nearby stores cache is publicly deletable" on nearby_stores_cache
+  for delete using (true);
