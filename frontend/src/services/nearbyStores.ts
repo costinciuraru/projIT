@@ -109,11 +109,11 @@ export async function getNearbyClothingStores(
       const position = element.type === "node" ? element : element.center;
       const shopType = element.tags?.shop as ClothingShopType | undefined;
 
-      if (!position?.lat || !position?.lon || !shopType || !SHOP_TYPES.includes(shopType)) {
+      const name = element.tags?.name ?? element.tags?.brand ?? element.tags?.operator;
+
+      if (!position?.lat || !position?.lon || !shopType || !SHOP_TYPES.includes(shopType) || !name) {
         return null;
       }
-
-      const name = element.tags?.name ?? element.tags?.brand ?? element.tags?.operator ?? "Unnamed store";
 
       return {
         id: `${element.type}/${element.id}`,
