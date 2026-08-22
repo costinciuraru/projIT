@@ -16,11 +16,12 @@ Trei motive concrete:
 
 ## 2. Stack
 
-- **Node.js + Express** (sau Fastify, dar Express e mai simplu de citit/menținut pentru cineva care vine din frontend), **TypeScript** — ca să fie consistent cu `frontend/`.
-- Folder separat `backend/`, la același nivel cu `frontend/` în repo, complet independent (propriul `package.json`, propriul `.env`).
-- `@supabase/supabase-js` — pentru citit/scris în DB cu privilegii de server (service role key, diferită de cheia `anon` folosită în frontend).
+- **Python + FastAPI** (async nativ, potrivit pentru apelurile lente către modele AI), **Uvicorn** ca server ASGI.
+- Folder separat `backend/`, la același nivel cu `frontend/` în repo, complet independent (propriul `requirements.txt`, propriul `.env`).
+- `supabase` (SDK oficial Python) — pentru citit/scris în DB cu privilegii de server (service role key, diferită de cheia `anon` folosită în frontend).
 - `openai` (SDK oficial) — pentru apelurile către GPT-5 mini.
-- `node-fetch` / `axios` — pentru apelul către endpoint-ul de Hugging Face (SDK-ul lor oficial e mai orientat spre Python; în Node se apelează de obicei direct REST-ul).
+- `gradio_client` / `httpx` — pentru apelul către endpoint-ul de Hugging Face (SDK-ul `gradio_client` e potrivit direct în Python pentru Spaces; `httpx` pentru un Inference Endpoint dedicat, apelat direct prin REST).
+- `pydantic` (vine cu FastAPI) — pentru validarea input-urilor și a variabilelor din `.env` (`pydantic-settings`).
 
 ---
 
@@ -29,7 +30,7 @@ Trei motive concrete:
 ```
 ┌─────────────┐        ┌──────────────────┐        ┌─────────────────────────┐
 │  Frontend   │──HTTP─▶│     Backend       │──HTTP─▶│  Hugging Face Endpoint   │
-│  (React,    │        │  (Node/Express)   │        │  (Virtual Try-On model) │
+│  (React,    │        │  (Python/FastAPI) │        │  (Virtual Try-On model) │
 │  frontend/) │◀──JSON─│                   │◀──JSON─│                         │
 └─────────────┘        │                   │        └─────────────────────────┘
        │                │                   │        ┌─────────────────────────┐
@@ -53,28 +54,27 @@ Frontend-ul poate citi direct din Supabase (feed, profil, etc. — vezi document
 ```
 backend/
 ├── src/
-│   ├── index.ts                  # entry point, pornește serverul Express
+│   ├── main.py                       # entry point, pornește aplicația FastAPI
 │   ├── routes/
-│   │   ├── tryon.routes.ts
-│   │   ├── recommendations.routes.ts
-│   │   └── tagging.routes.ts
+│   │   ├── tryon_routes.py
+│   │   ├── recommendations_routes.py
+│   │   └── tagging_routes.py
 │   ├── controllers/
-│   │   ├── tryon.controller.ts
-│   │   ├── recommendations.controller.ts
-│   │   └── tagging.controller.ts
+│   │   ├── tryon_controller.py
+│   │   ├── recommendations_controller.py
+│   │   └── tagging_controller.py
 │   ├── services/
-│   │   ├── huggingface.service.ts    # tot ce ține de apelul către HF
-│   │   ├── openai.service.ts         # tot ce ține de apelul către GPT-5 mini
-│   │   └── supabase.service.ts       # client Supabase cu service role key
+│   │   ├── huggingface_service.py    # tot ce ține de apelul către HF
+│   │   ├── openai_service.py         # tot ce ține de apelul către GPT-5 mini
+│   │   └── supabase_service.py       # client Supabase cu service role key
 │   ├── middleware/
-│   │   ├── auth.middleware.ts        # verifică JWT-ul Supabase din header
-│   │   └── errorHandler.middleware.ts
+│   │   ├── auth_middleware.py        # verifică JWT-ul Supabase din header
+│   │   └── error_handler_middleware.py
 │   └── config/
-│       └── env.ts                    # citește și validează variabilele din .env
+│       └── env.py                    # citește și validează variabilele din .env
 ├── .env                # NU se comite — îl completezi tu manual
 ├── .env.example        # se comite, doar cu numele variabilelor, fără valori
-├── package.json
-└── tsconfig.json
+└── requirements.txt
 ```
 
 ---
@@ -217,14 +217,14 @@ Din mockup: „AI Credits: 12” afișat în UI la Try-On. Regulă simplă de im
 - `backend/.env` **niciodată** în git (verifică `.gitignore`).
 - CORS configurat strict pe `FRONTEND_ORIGIN` — nu lăsa `*` în producție.
 - Cheia `SUPABASE_SERVICE_ROLE_KEY` are acces complet la DB, ocolind RLS — folosește-o doar în backend, niciodată în frontend.
-- Validează toate input-urile primite (`zod` e o alegere bună în Express+TS) înainte să le trimiți mai departe la Hugging Face/OpenAI — eviți costuri inutile din requesturi malformate.
-- Rate-limiting pe IP/user (`express-rate-limit`) ca să nu se poată abuza de endpoint-urile care costă bani (try-on, recomandări).
+- Validează toate input-urile primite (`pydantic`, deja inclus în FastAPI) înainte să le trimiți mai departe la Hugging Face/OpenAI — eviți costuri inutile din requesturi malformate.
+- Rate-limiting pe IP/user (`slowapi`, echivalentul FastAPI pentru `express-rate-limit`) ca să nu se poată abuza de endpoint-urile care costă bani (try-on, recomandări).
 
 ---
 
 ## 11. Deployment (notă rapidă)
 
-`backend/` se deployuiește separat de `frontend/` (ex: Railway, Render, Fly.io, sau un VPS) — nu pe același hosting static ca frontend-ul (React build-uit e doar fișiere statice, nu poate rula un server Node). Variabilele din `.env` se setează în panoul serviciului de hosting, nu se urcă fișierul `.env` propriu-zis.
+`backend/` se deployuiește separat de `frontend/` (ex: Railway, Render, Fly.io, sau un VPS), rulat cu Uvicorn/Gunicorn — nu pe același hosting static ca frontend-ul (React build-uit e doar fișiere statice, nu poate rula un server Python). Variabilele din `.env` se setează în panoul serviciului de hosting, nu se urcă fișierul `.env` propriu-zis.
 
 ---
 
