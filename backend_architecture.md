@@ -52,32 +52,39 @@ Frontend-ul poate citi direct din Supabase (feed, profil, etc. — vezi document
 
 ---
 
-## 4. Structura de foldere propusă
+## 4. Structura de foldere (reală, în repo)
+
+**Notă:** o versiune anterioară a acestei secțiuni propunea `app/` + `routers/` + `dependencies/`, dar implementarea reală (deja scrisă și testată) a folosit `src/` + `routes/` + `middleware/`, plus un layer suplimentar `controllers/` (orchestrare business logic — verificare credite, rezolvare `garmentItemId`, pornirea task-ului de fundal — separat de `routes/`, care rămâne doar HTTP in/out). Structura de mai jos e cea reală; dacă preferați convenția `app/`/`routers/`, e o redenumire mecanică (fișiere + importuri + `Dockerfile`/`docker-compose.yml`), nu o rescriere de logică.
 
 ```
 backend/
-├── app/
-│   ├── main.py                        # entry point, creează instanța FastAPI
-│   ├── config.py                      # pydantic-settings, citește .env
-│   ├── routers/
-│   │   ├── tryon.py
-│   │   ├── recommendations.py
-│   │   └── tagging.py
+├── src/
+│   ├── main.py                        # entry point, creează instanța FastAPI + CORS + lifespan
+│   ├── config/
+│   │   └── env.py                     # pydantic-settings, citește .env
+│   ├── routes/
+│   │   ├── tryon_routes.py
+│   │   ├── health_routes.py           # GET /api/db-check (conexiune Supabase)
+│   │   ├── recommendations_routes.py  # stub, neimplementat încă
+│   │   └── tagging_routes.py          # stub, neimplementat încă
+│   ├── controllers/
+│   │   ├── tryon_controller.py        # orchestrare: credite, Supabase, task de fundal
+│   │   ├── recommendations_controller.py  # stub
+│   │   └── tagging_controller.py          # stub
 │   ├── services/
-│   │   ├── huggingface_service.py     # tot ce ține de apelul către HF
-│   │   ├── openai_service.py          # tot ce ține de apelul către GPT-5 mini
+│   │   ├── huggingface_service.py     # apel HTTP (httpx, async) către HF — vezi secțiunea 6
+│   │   ├── openai_service.py          # stub, neimplementat încă
 │   │   └── supabase_service.py        # client Supabase cu service role key
-│   ├── dependencies/
-│   │   └── auth.py                    # dependency FastAPI care verifică JWT-ul Supabase
+│   ├── middleware/
+│   │   ├── auth_middleware.py         # placeholder auth (header X-User-Id) — vezi secțiunea 7
+│   │   └── error_handler_middleware.py    # stub, neimplementat încă
 │   └── models/
 │       └── schemas.py                 # modele Pydantic pentru request/response
 ├── .env                # NU se comite — l-ai completat deja manual
 ├── .env.example        # se comite, doar cu numele variabilelor, fără valori
 ├── requirements.txt
-└── README.md
+└── Dockerfile
 ```
-
-(`dependencies/` în loc de `middleware/` pentru auth — în FastAPI, verificarea per-rută se face de obicei cu `Depends()`, nu cu middleware global; e echivalentul funcțional din lumea Express.)
 
 ---
 
@@ -109,7 +116,7 @@ SUPABASE_SERVICE_ROLE_KEY=     # NU e aceeași cu cheia anon din frontend!
 
 ## 6. Endpoint-uri expuse de backend
 
-Toate cer header `Authorization: Bearer <supabase_jwt>` (vezi secțiunea 7), în afară de `/health`.
+Toate cer, pe termen lung, header `Authorization: Bearer <supabase_jwt>` (vezi secțiunea 7) — **momentan** `/api/tryon` cere în schimb un placeholder simplu, header `X-User-Id: <uuid din profiles>`, până se implementează auth-ul real. `/health` și `GET /api/db-check` (verifică rapid conexiunea la Supabase, query pe `profiles`) nu cer nimic.
 
 ### `POST /api/tryon`
 Pornește o sesiune de try-on. **Async** — nu așteaptă rezultatul (vezi secțiunea 8).
@@ -181,12 +188,14 @@ Primește locația userului, ia vremea (API extern separat, de ales ulterior), t
 
 ## 7. Autentificare
 
-Frontend-ul trimite la fiecare request header-ul:
+**Stare actuală (placeholder):** `src/middleware/auth_middleware.py` expune `get_current_user_id`, folosită cu `Depends(get_current_user_id)` în `tryon_routes.py` — citește pur și simplu header-ul `X-User-Id` și îl trimite ca atare, fără nicio verificare. E doar cât să meargă fluxul cap-coadă înainte să existe auth real; nu oferă nicio garanție de securitate (oricine poate pretinde orice `user_id`).
+
+**Țintă (de implementat):** frontend-ul trimite la fiecare request header-ul:
 ```
 Authorization: Bearer <access_token de la Supabase Auth>
 ```
 
-`app/dependencies/auth.py` expune o funcție `get_current_user` (folosită cu `Depends(get_current_user)` în fiecare router protejat) care validează token-ul prin `supabase.auth.get_user(token)` și întoarce `{ id, account_type }`. Dacă token-ul lipsește sau e invalid, FastAPI răspunde automat 401 (via `HTTPException`).
+`get_current_user_id` (sau o nouă `get_current_user`) va valida token-ul prin `supabase.auth.get_user(token)` și va întoarce `{ id, account_type }` real. Dacă token-ul lipsește sau e invalid, FastAPI răspunde automat 401 (via `HTTPException`).
 
 ---
 

@@ -21,8 +21,10 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
 
     hf_api_key: str | None = None
-    hf_tryon_space: str = "yisol/IDM-VTON"
-    hf_tryon_endpoint_url: str | None = None
+    # Either a dedicated Inference Endpoint (*.endpoints.huggingface.cloud) or a public
+    # Space (*.hf.space) — huggingface_service.py picks the protocol based on the shape.
+    # Defaults to the public IDM-VTON Space so try-on works without extra setup.
+    hf_tryon_endpoint_url: str = "https://yisol-idm-vton.hf.space"
 
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
@@ -45,7 +47,7 @@ def get_missing_config() -> list[str]:
     the actual values — safe to print/log."""
     settings = get_settings()
     checks = {
-        "HF_API_KEY or HF_TRYON_ENDPOINT_URL": bool(settings.hf_api_key or settings.hf_tryon_endpoint_url),
+        "HF_API_KEY": bool(settings.hf_api_key),
         "API_KEY (Azure OpenAI / GPT-5 mini)": bool(settings.azure_openai_api_key),
         "AZURE_ENDPOINT": bool(settings.azure_openai_endpoint),
         "SUPABASE_URL": bool(settings.supabase_url),

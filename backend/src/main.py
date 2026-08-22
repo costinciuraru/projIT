@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config.env import get_missing_config, get_settings
+from src.routes.health_routes import router as health_router
 from src.routes.tryon_routes import router as tryon_router
 
 settings = get_settings()
@@ -33,6 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(health_router)
 app.include_router(tryon_router)
 
 
