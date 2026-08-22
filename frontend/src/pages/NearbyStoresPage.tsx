@@ -1,5 +1,6 @@
 import StoreMap from "../components/StoreMap";
 import StoreCard from "../components/StoreCard";
+import LocationDebug from "../components/LocationDebug";
 import { MOCK_STORES } from "../data/mockStores";
 
 function NearbyStoresPage() {
@@ -9,6 +10,9 @@ function NearbyStoresPage() {
         <h1 className="text-2xl font-semibold text-ink">Nearby Stores</h1>
         <p className="mt-1 text-sm text-ink/60">Fashion stores around you, sorted by distance.</p>
       </div>
+
+      {/* Temporary: remove once real distance sorting replaces MOCK_STORES */}
+      <LocationDebug />
 
       <StoreMap stores={MOCK_STORES} />
 
