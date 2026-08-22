@@ -1,3 +1,7 @@
+-- SUPERSEDED: 0001/0002 were written before dresscode-db-frontend-contract.md
+-- existed. 0003_rebuild_per_contract.sql drops these tables and 0004_rls_policies.sql
+-- replaces the policies below. Kept only for history — do not run this file.
+--
 -- Row Level Security. Run after 0001_init_schema.sql.
 -- Frontend reads directly with the anon key (see frontend/src/lib/supabaseClient.ts);
 -- backend uses the service role key, which bypasses RLS entirely.
