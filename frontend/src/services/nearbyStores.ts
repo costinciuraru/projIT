@@ -1,3 +1,5 @@
+import { supabase } from "../lib/supabaseClient";
+
 export type ClothingShopType = "clothes" | "shoes" | "boutique";
 
 export interface NearbyClothingStore {
@@ -10,43 +12,44 @@ export interface NearbyClothingStore {
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const SHOP_TYPES: ClothingShopType[] = ["clothes", "shoes", "boutique"];
-
-const CACHE_PREFIX = "nearbyStores:";
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
-interface CacheEntry {
-  cachedAt: number;
-  stores: NearbyClothingStore[];
+interface CacheRow {
+  stores_json: NearbyClothingStore[];
 }
 
-function cacheKey(lat: number, lon: number, radiusMeters: number): string {
-  return `${CACHE_PREFIX}${lat.toFixed(2)},${lon.toFixed(2)},${radiusMeters}`;
+async function readCache(latRounded: number, lonRounded: number): Promise<NearbyClothingStore[] | null> {
+  const cutoff = new Date(Date.now() - CACHE_TTL_MS).toISOString();
+
+  const { data, error } = await supabase
+    .from("nearby_stores_cache")
+    .select("stores_json")
+    .eq("lat_rounded", latRounded)
+    .eq("lng_rounded", lonRounded)
+    .gte("fetched_at", cutoff)
+    .maybeSingle<CacheRow>();
+
+  if (error || !data) return null;
+
+  return data.stores_json;
 }
 
-function readCache(key: string): NearbyClothingStore[] | null {
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
+async function writeCache(
+  latRounded: number,
+  lonRounded: number,
+  stores: NearbyClothingStore[],
+): Promise<void> {
+  const { error } = await supabase.from("nearby_stores_cache").upsert(
+    {
+      lat_rounded: latRounded,
+      lng_rounded: lonRounded,
+      stores_json: stores,
+      fetched_at: new Date().toISOString(),
+    },
+    { onConflict: "lat_rounded,lng_rounded" },
+  );
 
-    const entry: CacheEntry = JSON.parse(raw);
-    if (Date.now() - entry.cachedAt > CACHE_TTL_MS) {
-      sessionStorage.removeItem(key);
-      return null;
-    }
-
-    return entry.stores;
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(key: string, stores: NearbyClothingStore[]): void {
-  try {
-    const entry: CacheEntry = { cachedAt: Date.now(), stores };
-    sessionStorage.setItem(key, JSON.stringify(entry));
-  } catch {
-    // sessionStorage unavailable (private browsing, storage full, etc.) - caching is best-effort
-  }
+  if (error) console.error("Failed to write nearby_stores_cache:", error.message);
 }
 
 interface OverpassElement {
@@ -76,8 +79,10 @@ export async function getNearbyClothingStores(
   lon: number,
   radiusMeters = 3000,
 ): Promise<NearbyClothingStore[]> {
-  const key = cacheKey(lat, lon, radiusMeters);
-  const cached = readCache(key);
+  const latRounded = Number(lat.toFixed(2));
+  const lonRounded = Number(lon.toFixed(2));
+
+  const cached = await readCache(latRounded, lonRounded);
   if (cached) return cached;
 
   const query = buildQuery(lat, lon, radiusMeters);
@@ -118,7 +123,7 @@ export async function getNearbyClothingStores(
     })
     .filter((store): store is NearbyClothingStore => store !== null);
 
-  writeCache(key, stores);
+  await writeCache(latRounded, lonRounded, stores);
 
   return stores;
 }

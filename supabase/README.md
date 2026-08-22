@@ -13,6 +13,7 @@ Run these in order in the Supabase Dashboard → **SQL Editor**:
 
 1. [`migrations/0003_rebuild_per_contract.sql`](migrations/0003_rebuild_per_contract.sql)
 2. [`migrations/0004_rls_policies.sql`](migrations/0004_rls_policies.sql)
+3. [`migrations/0005_nearby_stores_cache.sql`](migrations/0005_nearby_stores_cache.sql)
 
 `0001_init_schema.sql` and `0002_rls_policies.sql` are an earlier draft made
 before the contract doc existed — **do not run them**, they're kept only for
